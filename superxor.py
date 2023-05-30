@@ -3,12 +3,16 @@ superXOR by DGideas
 (c) 2023 dgideas@outlook.com
 published under WTFPL, do anything you want!
 """
+import logging
 from typing import Dict
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser
 
-BLOCK_SIZE = 64 * 1024
-CHUNK_SIZE = 32
+logging.basicConfig(format="%(message)s", level=logging.INFO)
+logger = logging.getLogger("superxor")
+
+BLOCK_SIZE = 64 * 1024 # 64 kB
+CHUNK_SIZE = 32 # 32 bytes
 
 class HandlerBase(ABC):
     HANDLER_NAME: str = None
@@ -82,8 +86,15 @@ with open(input_location, "rb") as _f, open(output_location, "wb") as _output:
         _blk = _f.read(BLOCK_SIZE)
         if not _blk:
             break
+        
+        # output when reach every MB
+        if _f.tell() % (1024 * 1024) == 0:
+            logger.info(f"Readed {_f.tell() // (1024*1024)} MB for now.")
+        
         new_blk = b""
         for idx in range(0, len(_blk), CHUNK_SIZE):
             chunk = _blk[idx:idx+CHUNK_SIZE]
             new_blk += handler.handle(chunk)
         _output.write(new_blk)
+
+logger.info(f"All done! Please refer to `{output_location}`")
