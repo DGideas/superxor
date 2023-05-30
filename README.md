@@ -15,6 +15,13 @@ To reverse the bit-reversed file back to the original file, simply use:
 python3 superxor.py reversed.file -o original.file
 ```
 
+You can also perform this operation with a whole dictionary:
+
+```bash
+pytho3n superxor.py from_dictionary --to to_dictionary
+```
+
+
 The `-r` flag is not applicable in bit reverse mode.
 
 ### SHA256 Key rotate encrypt mode(`key256`)
