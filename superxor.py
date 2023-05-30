@@ -3,10 +3,11 @@ superXOR by DGideas
 (c) 2023 dgideas@outlook.com
 published under WTFPL, do anything you want!
 """
-import logging
-from typing import Dict
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser
+from hashlib import sha256
+import logging
+from typing import Dict
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 logger = logging.getLogger("superxor")
@@ -18,7 +19,7 @@ class HandlerBase(ABC):
     HANDLER_NAME: str = None
     
     def __init__(self, *args, **kwargs) -> None:
-        self.reverse: bool = kwargs.get("reverse", False)
+        self.reverse: bool = kwargs["reverse"]
         super().__init__()
     
     @abstractmethod
@@ -37,8 +38,35 @@ class BitReverseHandler(HandlerBase):
         uint: int = 2**(chunk_length*8)-1 - uint
         return uint.to_bytes(chunk_length, byteorder="big", signed=False)
 
+class SHA256PassphraseHandler(HandlerBase):
+    HANDLER_NAME: str = "key256"
+    
+    def __init__(self, *args, **kwargs) -> None:
+        if key is None:
+            raise KeyError("Please specified a key, not None.")
+        self.rotate_key: bytes = sha256(key.encode()).digest()
+        super().__init__(*args, **kwargs)
+    
+    def handle(self, chunk: bytes) -> bytes:
+        chunk_length = len(chunk)
+        assert chunk_length <= 32 # using 256 bit rotate key
+        uint = int.from_bytes(chunk, byteorder="big", signed=False)
+        uint: int = uint ^ (
+            int.from_bytes(
+                self.rotate_key[:chunk_length], byteorder="big", signed=False
+            )
+        )
+        new_chunk: bytes = uint.to_bytes(chunk_length, byteorder="big", signed=False)
+        # rotate after handler each chunk
+        original_text = chunk if not self.reverse else new_chunk
+        to_rotate = self.rotate_key + original_text # (key + text) to rotate
+        self.rotate_key: bytes = sha256(to_rotate).digest()
+        
+        return new_chunk
+
 MODE_HANDLER_MAP: Dict[str, HandlerBase] = {
     BitReverseHandler.HANDLER_NAME: BitReverseHandler,
+    SHA256PassphraseHandler.HANDLER_NAME: SHA256PassphraseHandler,
 }
 
 parser = ArgumentParser(
@@ -68,6 +96,12 @@ parser.add_argument(
     action="store_true",
     required=False,
 )
+parser.add_argument(
+    "-k",
+    "--key",
+    action="store",
+    required=False,
+)
 
 args: dict = vars(parser.parse_args())
 
@@ -75,11 +109,12 @@ input_location: str = args["input"]
 output_location: str = args.get("output", input_location)
 mode: str = args["mode"]
 reverse: bool = args["reverse"]
+key: str = args.get("key", None)
 
 if mode not in MODE_HANDLER_MAP:
     raise NameError(f"Cannot found handler for `{mode}` mode.")
 
-handler: HandlerBase = MODE_HANDLER_MAP[mode](reverse=reverse)
+handler: HandlerBase = MODE_HANDLER_MAP[mode](reverse=reverse, key=key)
 
 with open(input_location, "rb") as _f, open(output_location, "wb") as _output:
     while True:
