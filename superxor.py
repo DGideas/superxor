@@ -43,10 +43,17 @@ class SHA256PassphraseHandler(HandlerBase):
     HANDLER_NAME: str = "key256"
     
     def __init__(self, *args, **kwargs) -> None:
-        if key is None:
+        self.key = kwargs["key"]
+        if self.key is None:
             raise KeyError("Please specified a key, not None.")
-        self.rotate_key: bytes = sha256(key.encode()).digest()
+        self.rotate_key: bytes = sha256(self.key.encode()).digest()
         super().__init__(*args, **kwargs)
+
+        if len(self.key) < 16 and not self.reverse:
+            logger.warning(
+                "Please consider using a longer passphrase, "
+                "as a passphrase shorter than 16 characters is significantly unsafe."
+            )
     
     def handle(self, chunk: bytes) -> bytes:
         chunk_length = len(chunk)
